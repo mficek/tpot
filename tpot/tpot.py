@@ -26,7 +26,10 @@ import inspect
 import sys
 from functools import partial
 from collections import Counter
-from itertools import compress
+from itertools import compress, chain
+from operator import itemgetter
+
+import math
 
 import numpy as np
 import pandas as pd
@@ -144,7 +147,10 @@ class TPOT(object):
         self._pset.renameArguments(ARG0='input_df')
 
         self._pset.addPrimitive(self._gaussian_nb, [pd.DataFrame], ClassifiedDF)
-        self._pset.addPrimitive(self._mdr, [pd.DataFrame, int, int], pd.DataFrame)
+#        self._pset.addPrimitive(self._mdr, [pd.DataFrame, int, int, int, int, int, int, int, int], 
+#                                            pd.DataFrame)
+        self._pset.addPrimitive(self._mdr, [pd.DataFrame, int, int, int], pd.DataFrame)
+#        self._pset.addPrimitive(self._mdr, [pd.DataFrame, int, int], pd.DataFrame)                                            
         self._pset.addPrimitive(self._select_kbest, [pd.DataFrame, int], pd.DataFrame)
         self._pset.addPrimitive(self._ekf, [pd.DataFrame, int, int], pd.DataFrame)
         self._pset.addPrimitive(self._combine_dfs, [pd.DataFrame, pd.DataFrame], pd.DataFrame)
@@ -202,15 +208,16 @@ class TPOT(object):
             for ek_source in self.expert_source:
                 if len(ek_source) == features.shape[1]:
                     if all(isinstance(n, bool) for n in ek_source):
+#                    if all(isinstance(ek_source, bool)):
                         try:
-                            np.isnan(self.expert_source[i])
+                            np.isnan(ek_source)
                         except:
                             pass
                         else:
                             raise ValueError('Expert knowledge sources must not have missing values.')
                     else:
                         try:
-                            np.isnan(self.expert_source[i])
+                            np.isnan(ek_source)
                         except:
                             pass
                         else:
@@ -476,7 +483,9 @@ class TPOT(object):
         """
         return self._train_model_and_predict(input_df, GaussianNB)
 
-    def _mdr(self, input_df, tie_break, default_label):
+#    def _mdr(self, input_df, tie_break, default_label, track_index, index_1, 
+#             index_2, index_3, index_4, index_5):
+    def _mdr(self, input_df, tie_break, default_label, track_index):
         """Fits the Multifactor Dimensionality Reduction feature construction algorithm
 
         Parameters
@@ -487,12 +496,17 @@ class TPOT(object):
             Default class label that is used when a MDR cell has an equal number of each class
         default_label: int
             Default class label that is used when MDR encounters a feature pair that it did not encounter in the training set
+        total_indices: int
+            Number of features to use
+        index_1 to 5: int
+            Which features to use
 
         Returns
         -------
         input_df: pandas.DataFrame {n_samples, n_features+['guess', 'group', 'class']}
             Returns a modified input DataFrame with the new MDR constructed feature appended
         """
+
         if len(input_df.columns) == 3:
             return input_df
 
@@ -501,13 +515,55 @@ class TPOT(object):
         default_label_choice = all_classes[default_label % len(all_classes)]
 
         input_df = input_df.copy()
+        input_cols = input_df.columns.drop(self.non_feature_columns)
+        cols_len = len(input_cols)
+        
+#        indices = [index_1, index_2, index_3, index_4, index_5]  
+        if cols_len > 5:
+            track_index = (track_index % 5) + 1
+            
+#            if any(index >= cols_len for index in indices):
+#                f1 = list(filter(lambda x: x > cols_len, indices))
+#                f2 = list(filter(lambda y: y == cols_len, indices))
+#                new_list = list(set(indices) - set(f1))
+#                new_list = list(set(new_list) - set(f2))
+#                for d in f2:
+#                    d = d - 1
+#                    new_list.extend([d])
+#                for c in f1:
+#                    c = c % cols_len
+#                    new_list.extend([c])
+                    
+#            if track_index == 5:
+#                mdr_subset = list(itemgetter(new_list)(input_cols))
+#            elif track_index == 4:
+#                mdr_subset = list(itemgetter(new_list[:4])(input_cols))
+#            elif track_index == 3:
+#                mdr_subset = list(itemgetter(new_list[:3])(input_cols))
+#            elif track_index == 2:
+#                mdr_subset = list(itemgetter(new_list[:2])(input_cols))
+#            elif track_index == 1: 
+#                mdr_subset = list(itemgetter(new_list[:1])(input_cols))
+            
+            if track_index == 5:
+                mdr_subset = list(itemgetter(input_cols[:5])(input_cols))
+            elif track_index == 4:
+                mdr_subset = list(itemgetter(input_cols[:4])(input_cols))
+            elif track_index == 3:
+                mdr_subset = list(itemgetter(input_cols[:3])(input_cols))
+            elif track_index == 2:
+                mdr_subset = list(itemgetter(input_cols[:2])(input_cols))
+            elif track_index == 1:
+                mdr_subset = list(itemgetter(input_cols[:1])(input_cols))
+                
+            input_df = input_df[mdr_subset + self.non_feature_columns]
 
         training_features = input_df.loc[input_df['group'] == 'training'].drop(self.non_feature_columns, axis=1)
         training_classes = input_df.loc[input_df['group'] == 'training', 'class'].values
 
         mdr = MDR(tie_break_choice, default_label_choice)
         mdr.fit(training_features.values, training_classes)
-
+            
         mdr_hash = '-'.join(sorted(training_features.columns.values))
         mdr_hash += 'MDR'
         mdr_hash += '-'.join([str(param) for param in [tie_break, default_label]])
@@ -633,11 +689,15 @@ class TPOT(object):
             ekf_source = np.array(self.expert_source[ekf_index])
             ekf_subset = list(compress(input_df.drop(self.non_feature_columns, axis=1).columns.values, ekf_source)) + self.non_feature_columns
         # Feature importance filter
+#        elif (len(self.expert_source[ekf_index].columns) > 3) & (len(self.expert_source[ekf_index].columns) < (len(input_df.shape[1]) - 3)):
+#            ekf_source = self.expert_source[ekf_index].columns
+#            ekf_subset = list(compress(input_df.drop(self.non_feature_columns, axis=1).columns.values, ekf_source)) + self.non_feature_columns
         else:
             # Assume higher feature importance score means it's a better feature
-            ekf_source = np.argsort(self.expert_source[ekf_index])[::-1]
-            ekf_source = ekf_source[:k_best]
-            ekf_subset = list(input_df.columns.values[ekf_source]) + self.non_feature_columns
+#            ekf_source = np.argsort(self.expert_source[ekf_index])[::-1]
+#            ekf_source = ekf_source[:k_best]
+            ekf_source = (self.expert_source[ekf_index].iloc[:k_best])['Gene']
+            ekf_subset = list(ekf_source) + self.non_feature_columns
 
         return input_df.loc[:, ekf_subset].copy()
 
@@ -928,6 +988,9 @@ def main():
 
     parser.add_argument('INPUT_FILE', type=str, help='Data file to optimize the pipeline on; ensure that the class label column is labeled as "class".')
 
+#    parser.add_argument('-ekf', action='store', dest='EXPERT_SOURCE', default=None, 
+#                        type=list, help='List of expert knowledge features filter. Must be =< number of features of the input data.')    
+    
     parser.add_argument('-h', '--help', action='help', help='Show this help message and exit.')
 
     parser.add_argument('-is', action='store', dest='INPUT_SEPARATOR', default='\t',
@@ -998,7 +1061,8 @@ def main():
 
     tpot = TPOT(generations=args.GENERATIONS, population_size=args.POPULATION_SIZE,
                 mutation_rate=args.MUTATION_RATE, crossover_rate=args.CROSSOVER_RATE,
-                random_state=args.RANDOM_STATE, verbosity=args.VERBOSITY,
+                random_state=args.RANDOM_STATE, expert_source=args.EXPERT_SOURCE,
+                verbosity=args.VERBOSITY,
                 disable_update_check=args.DISABLE_UPDATE_CHECK)
 
     tpot.fit(training_features, training_classes)
