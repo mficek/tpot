@@ -158,6 +158,7 @@ def _pre_test(func):
             except BaseException as e:
                 if self.verbosity == 3:
                     print('_pre_test decorator: {fname}: num_test={n} {e}'.format(n=num_test, fname=func.__name__, e=e))
+                    print('_pre_test expr: {expr}'.format(expr = expr[0]))
                 pass
             finally:
                 num_test += 1
