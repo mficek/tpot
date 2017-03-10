@@ -50,7 +50,7 @@ classifier_config_dict = {
         'max_depth': range(1, 11),
         'min_samples_split': range(2, 21),
         'min_samples_leaf': range(1, 21),
-        'max_features': [10, 200]
+        'max_features': [5,10]
     },
     #
     # 'sklearn.ensemble.ExtraTreesClassifier': {

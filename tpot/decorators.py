@@ -122,7 +122,7 @@ def _timeout(max_eval_time_mins=5):
 
 
 
-def _pre_test(func):
+def _pre_test(operator=False):
     """Decorator that wraps functions to check if the pipeline works with a pretest data set
     If not, then rerun the func until it generates a good pipeline
 
@@ -136,31 +136,37 @@ def _pre_test(func):
     wrapped_func: function
         A wrapper function around the func parameter
     """
-    @wraps(func)
-    def check_pipeline(self, *args, **kwargs):
-        bad_pipeline = True
-        num_test = 0 # number of tests
-        while bad_pipeline and num_test < 10: # a pool for workable pipeline
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    expr = func(self, *args, **kwargs)
-                    # mutation operator returns tuple (ind,); crossover operator returns tuple (ind1, ind2)
-                    expr_tuple = expr if isinstance(expr, tuple) else (expr,)
-                    for expr_test in expr_tuple:
-                        #print(num_test, generate_pipeline_code(expr_to_tree(expr), self.operators)) # debug
-                        sklearn_pipeline = eval(generate_pipeline_code(expr_to_tree(expr_test), self.operators), self.operators_context)
-                        if self.classification:
-                            sklearn_pipeline.fit(pretest_X, pretest_y)
-                        else:
-                            sklearn_pipeline.fit(pretest_X_reg, pretest_y_reg)
-                        bad_pipeline = False
-            except BaseException as e:
-                if self.verbosity == 3:
-                    print('_pre_test decorator: {fname}: num_test={n} {e}'.format(n=num_test, fname=func.__name__, e=e))
-                    print('_pre_test expr: {expr}'.format(expr = expr[0]))
-                pass
-            finally:
-                num_test += 1
-        return expr
-    return check_pipeline
+    def actual_decorator(func):
+        @wraps(func)
+        def check_pipeline(self, *args, **kwargs):
+            bad_pipeline = True
+            num_test = 0 # number of tests
+            while bad_pipeline and num_test < 10: # a pool for workable pipeline
+                try:
+                    if operator:
+                        arguments = [self._toolbox.clone(ind) for ind in args]
+                    else:
+                        arguments = args
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore')
+                        expr = func(self, *arguments, **kwargs)
+                        # mutation operator returns tuple (ind,); crossover operator returns tuple (ind1, ind2)
+                        expr_tuple = expr if isinstance(expr, tuple) else (expr,)
+                        for expr_test in expr_tuple:
+                            #print(num_test, generate_pipeline_code(expr_to_tree(expr), self.operators)) # debug
+                            sklearn_pipeline = eval(generate_pipeline_code(expr_to_tree(expr_test), self.operators), self.operators_context)
+                            if self.classification:
+                                sklearn_pipeline.fit(pretest_X, pretest_y)
+                            else:
+                                sklearn_pipeline.fit(pretest_X_reg, pretest_y_reg)
+                            bad_pipeline = False
+                except BaseException as e:
+                    if self.verbosity == 3:
+                        print('_pre_test decorator: {fname}: num_test={n} {e}'.format(n=num_test, fname=func.__name__, e=e))
+                        # print('_pre_test expr: {expr}'.format(expr = expr[0]))
+                    pass
+                finally:
+                    num_test += 1
+            return expr
+        return check_pipeline
+    return actual_decorator

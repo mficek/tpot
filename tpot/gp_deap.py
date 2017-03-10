@@ -73,11 +73,8 @@ def varOr(population, toolbox, lambda_, cxpb, mutpb):
             ind = toolbox.clone(population[idx])
             ind_str = str(ind)
             num_loop = 0
-            print i, "==+> Mutation", str(ind)
             while ind_str == str(ind) and num_loop < 50 : # 50 loops at most to generate a different individual by mutation
                 ind, = toolbox.mutate(ind)
-                if ind_str != str(ind):
-                    print i, "==-> Mutation", str(ind)
                 num_loop += 1
             if ind_str != str(ind): # check if mutation happened
                 del ind.fitness.values

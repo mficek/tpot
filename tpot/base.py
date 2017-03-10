@@ -788,11 +788,11 @@ class TPOTBase(BaseEstimator):
             fitnesses_ordered.append(fitnesses_dict[key])
         return fitnesses_ordered
 
-    @_pre_test
+    @_pre_test(operator=True)
     def _mate_operator(self, ind1, ind2):
         return gp.cxOnePoint(ind1, ind2)
 
-    @_pre_test
+    @_pre_test(operator=True)
     def _random_mutation_operator(self, individual):
         """Perform a replacement, insert, or shrink mutation on an individual
 
@@ -816,8 +816,6 @@ class TPOTBase(BaseEstimator):
             partial(gp.mutShrink)
         ]
         choice = np.random.choice(range(len(mutation_techniques)))
-        descriptions = ['insert', 'replacement', 'shrink']
-        print('mut:', descriptions[choice])
         return mutation_techniques[choice](individual)
 
 
@@ -850,7 +848,7 @@ class TPOTBase(BaseEstimator):
         return self._generate(pset, min_, max_, condition, type_)
 
     # Generate function stolen straight from deap.gp.generate
-    @_pre_test
+    @_pre_test(operator=False)
     def _generate(self, pset, min_, max_, condition, type_=None):
         """Generate a Tree as a list of list. The tree is build from the root to
         the leaves, and it stop growing when the condition is fulfilled.
