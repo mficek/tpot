@@ -815,7 +815,10 @@ class TPOTBase(BaseEstimator):
             partial(mutNodeReplacement, pset=self._pset),
             partial(gp.mutShrink)
         ]
-        return np.random.choice(mutation_techniques)(individual)
+        choice = np.random.choice(range(len(mutation_techniques)))
+        descriptions = ['insert', 'replacement', 'shrink']
+        print('mut:', descriptions[choice])
+        return mutation_techniques[choice](individual)
 
 
     def _gen_grow_safe(self, pset, min_, max_, type_=None):

@@ -53,7 +53,8 @@ def varOr(population, toolbox, lambda_, cxpb, mutpb):
     1 - *cxpb* - *mutpb*.
     """
     offspring = []
-    for _ in range(lambda_):
+    operators = []
+    for i, _ in enumerate(range(lambda_)):
         op_choice = np.random.random()
         if op_choice < cxpb:            # Apply crossover
             idxs = np.random.randint(0, len(population),size=2)
@@ -66,22 +67,28 @@ def varOr(population, toolbox, lambda_, cxpb, mutpb):
             if ind_str != str(ind1): # check if crossover happened
                 del ind1.fitness.values
             offspring.append(ind1)
+            operators.append('CROSSOVER')
         elif op_choice < cxpb + mutpb:  # Apply mutation
             idx = np.random.randint(0, len(population))
             ind = toolbox.clone(population[idx])
             ind_str = str(ind)
             num_loop = 0
+            print i, "==+> Mutation", str(ind)
             while ind_str == str(ind) and num_loop < 50 : # 50 loops at most to generate a different individual by mutation
                 ind, = toolbox.mutate(ind)
+                if ind_str != str(ind):
+                    print i, "==-> Mutation", str(ind)
                 num_loop += 1
             if ind_str != str(ind): # check if mutation happened
                 del ind.fitness.values
             offspring.append(ind)
+            operators.append('MUTATION')
         else: # Apply reproduction
             idx = np.random.randint(0, len(population))
             offspring.append(toolbox.clone(population[idx]))
+            operators.append('REPRODUCTION')
 
-    return offspring
+    return offspring, operators
 
 def eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, pbar,
                    stats=None, halloffame=None, verbose=0, max_time_mins = None):
@@ -133,6 +140,9 @@ def eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, pbar,
     # Evaluate the individuals with an invalid fitness
     invalid_ind = [ind for ind in population if not ind.fitness.valid]
 
+    for pop in population:
+        pbar.write('{pop}'.format(pop=pop))
+
     fitnesses = toolbox.evaluate(invalid_ind)
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
@@ -145,9 +155,12 @@ def eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, pbar,
 
     # Begin the generational process
     for gen in range(1, ngen + 1):
+        pbar.write('\n========= GENERATION {gen} ======='.format(gen=gen))
 
         # Vary the population
-        offspring = varOr(population, toolbox, lambda_, cxpb, mutpb)
+        offspring, operators = varOr(population, toolbox, lambda_, cxpb, mutpb)
+        for pop, off, op in zip(population, offspring, operators):
+            pbar.write('{op}: {pop} ==> {off}'.format(pop=pop, off=off, op=op))
 
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
